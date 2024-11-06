@@ -1,13 +1,12 @@
 import zipfile
 import os
-from datetime import datetime
+from datetime import datetime, date
 import re
 from pathlib import Path
 import shutil
 import sys
 import webbrowser
-import tkinter as tk
-from tkinter import filedialog
+
 
 version = "0.1.0"
 
@@ -31,7 +30,23 @@ class WhatsAppChatRenderer:
             'own': '#d9fdd3',    # WhatsApp green for own messages
             'default': '#ffffff', # White for the second sender
             # Additional colors for other senders
-            'others': ['#f0e6ff', '#fff3e6', '#e6fff0', '#ffe6e6', '#e6f3ff']
+            'others': [
+                '#f0e6ff',  # Light purple
+                '#fff3e6',  # Light orange
+                '#e6fff0',  # Light mint
+                '#ffe6e6',  # Light pink
+                '#e6f3ff',  # Light blue
+                '#fff0f0',  # Lighter pink
+                '#e6ffe6',  # Lighter mint
+                '#f2e6ff',  # Lighter purple
+                '#fff5e6',  # Peach
+                '#e6ffff',  # Light cyan
+                '#ffe6f0',  # Rose
+                '#f0ffe6',  # Light lime
+                '#e6e6ff',  # Lavender
+                '#ffe6cc',  # Light apricot
+                '#e6fff9'   # Light turquoise
+            ]
         }
         self.sender_color_map = {}
         self.newline_marker = ' $NEWLINE$ '
@@ -40,7 +55,7 @@ class WhatsAppChatRenderer:
         # Various attachment markers in different languages
         self.attachment_patterns = [
             # English
-            r'<attached: (.+?)>',
+            r'(.+?) \(file attached\)',
             # German
             r'(.+?) \(Datei angehängt\)',
             # Spanish
@@ -53,6 +68,15 @@ class WhatsAppChatRenderer:
             r'(.+?) \(arquivo anexado\)',
             # Common WhatsApp format for images/videos
             r'‎?(IMG|VID)-\d{8}(?:-WA\d{4})?\.(?:jpg|jpeg|png|mp4|gif|webp)',
+        ]
+        self.has_media = False
+        self.from_date = None
+        self.until_date = None
+        self.date_formats = [
+            "%d.%m.%Y",  # German format: DD.MM.YYYY
+            "%m/%d/%Y",  # US format: MM/DD/YYYY
+            "%d.%m.%y",  # German format: DD.MM.YY
+            "%m/%d/%y"   # US format: MM/DD/YY
         ]
 
     def get_senders(self, chat_content):
@@ -80,15 +104,84 @@ class WhatsAppChatRenderer:
             color_index = i % len(self.sender_colors['others'])
             self.sender_color_map[sender] = self.sender_colors['others'][color_index]
 
+    def parse_date_input(self, date_str):
+        """Parse date string in either US or German format."""
+        if not date_str:
+            return None
+            
+        for fmt in self.date_formats:
+            try:
+                return datetime.strptime(date_str, fmt).date()
+            except ValueError:
+                continue
+        raise ValueError(f"Invalid date format. Please use DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, or MM/DD/YY")
+
+    def parse_message_date(self, date_str):
+        """Parse the date from a message timestamp."""
+        # Remove time part
+        date_str = date_str.split(',')[0]
+        # Try both German and US formats from the chat
+        for fmt in self.date_formats:
+            try:
+                return datetime.strptime(date_str, fmt).date()
+            except ValueError:
+                continue
+        raise ValueError(f"Could not parse message date: {date_str}")
+
+    def is_message_in_date_range(self, timestamp):
+        """Check if message timestamp falls within the specified date range."""
+        msg_date = self.parse_message_date(timestamp)
+        if self.from_date and msg_date < self.from_date:
+            return False
+        if self.until_date and msg_date > self.until_date:
+            return False
+        return True
+
     def process_chat(self):
-        # Clean output directory if it exists
+        # Ask for optional date range
+        print("\nOptional: Enter date range to filter messages")
+        print("Supported formats: MM/DD/YYYY, DD.MM.YYYY, MM/DD/YY, DD.MM.YY")
+        print("Leave empty to skip")
+        
+        while True:
+            try:
+                from_date_str = input("From date (optional): ").strip()
+                self.from_date = self.parse_date_input(from_date_str)
+                break
+            except ValueError as e:
+                print(f"Error: {e}")
+                if input("Try again? [Y/n]: ").lower() == 'n':
+                    break
+
+        while True:
+            try:
+                until_date_str = input("Until date (optional): ").strip()
+                self.until_date = self.parse_date_input(until_date_str)
+                if self.from_date and self.until_date and self.from_date > self.until_date:
+                    raise ValueError("'From' date must be before 'until' date")
+                break
+            except ValueError as e:
+                print(f"Error: {e}")
+                if input("Try again? [Y/n]: ").lower() == 'n':
+                    break
 
         # Get the base name of the zip file without extension
         zip_base_name = Path(self.zip_path).stem
 
+        if os.path.exists(self.output_dir):
+                print(f"Cleaning existing directory: {self.output_dir}")
+                shutil.rmtree(self.output_dir)
+
+                # Create fresh output directories
+                os.makedirs(self.output_dir)
+                os.makedirs(self.media_dir)
+
         with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
-            # Extract all files
-            zip_ref.extractall(self.media_dir)
+            # Extract media files
+            for file in zip_ref.namelist():
+                if file != f"{zip_base_name}.txt":
+                    zip_ref.extract(file, self.media_dir)
+                    self.has_media = True
             
             # Find the chat file using the zip file's name
             chat_file = f"{zip_base_name}.txt"
@@ -97,41 +190,47 @@ class WhatsAppChatRenderer:
             if chat_file not in zip_ref.namelist():
                 raise FileNotFoundError(f"The chat file '{chat_file}' does not exist in the ZIP archive. Not a valid WhatsApp export zip.")
 
-            if os.path.exists(self.output_dir):
-                print(f"Cleaning existing directory: {self.output_dir}")
-                shutil.rmtree(self.output_dir)
-
-                # Create fresh output directories
-                os.makedirs(self.output_dir)
-                os.makedirs(self.media_dir)
+            
             with zip_ref.open(chat_file) as f:
                 chat_content = f.read().decode('utf-8')
-
+        if self.has_media:
+            print("Export contains media/attachments.")
+        else:
+            print("Export does not contain media/attachments.")
+            shutil.rmtree(self.media_dir)
         # Preprocess the chat content to handle multi-line messages
         processed_content = []
         current_line = []
+        filtered_count = 0
+        total_count = 0
         
         for line in chat_content.split('\n'):
-            # Check if line starts with a date pattern
-            if self.chat_pattern.match(line):
+            match = self.chat_pattern.match(line)
+            if match:
+                print(line)
+                total_count += 1
                 if current_line:
                     processed_content.append(''.join(current_line))
+                # Only add messages within date range
+                if not self.is_message_in_date_range(match.group(1)):
+                    current_line = []
+                    continue
+                filtered_count += 1
                 current_line = [line]
             else:
-                # If it's a continuation, add it with a <br>
                 if current_line:
                     current_line.append(self.newline_marker + line)
-                else:
-                    # If somehow we start with a continuation line, just add it
-                    current_line = [line]
-        
+
         # Don't forget to add the last message
         if current_line:
             processed_content.append(''.join(current_line))
 
         # Join all processed lines with newlines
         chat_content = '\n'.join(processed_content)
-
+        if self.from_date or self.until_date:
+            print(f"\n{filtered_count} of {total_count} messages match date range filter.")
+        print(f"Exporting {len(processed_content)} messages.")
+        # print(processed_content)
         # Get list of senders and let user choose their name
         senders = self.get_senders(chat_content)
         print("\nFound the following participants in the chat:")
@@ -155,9 +254,9 @@ class WhatsAppChatRenderer:
         # Write HTML file
         with open(os.path.join(self.output_dir, self.html_filename), 'w', encoding='utf-8') as f:
             f.write(self.generate_html(chat_content, render_attachments=True))
-
-        with open(os.path.join(self.output_dir, self.html_filename_media_linked), 'w', encoding='utf-8') as f:
-            f.write(self.generate_html(chat_content, render_attachments=False))
+        if self.has_media:
+            with open(os.path.join(self.output_dir, self.html_filename_media_linked), 'w', encoding='utf-8') as f:
+                f.write(self.generate_html(chat_content, render_attachments=False))
 
     @staticmethod
     def wrap_urls_with_anchor_tags(text):
@@ -269,8 +368,11 @@ class WhatsAppChatRenderer:
         <body>
         <div class="chat-container">
         <h1>PLACEHOLDER_CHAT_NAME</h1>
-        """.replace("PLACEHOLDER_CHAT_NAME", self.chat_name)
-
+        """.replace('PLACEHOLDER_CHAT_NAME', self.chat_name)
+        if self.from_date or self.until_date:
+            date_range = f"Filtered: {self.from_date.strftime('%d.%m.%Y') if self.from_date else 'start'} to {self.until_date.strftime('%d.%m.%Y') if self.until_date else 'end'}"
+            html += f'<p style="color: #667781;">{date_range}</p>'
+        
         for line in chat_content.split('\n'):
             match = self.chat_pattern.match(line)
             if match:
@@ -326,7 +428,26 @@ class WhatsAppChatRenderer:
         """
         return html
 
+def check_tkinter_availability():
+    """Check if tkinter is available and working on the system."""
+    try:
+        import tkinter as tk
+        root = tk.Tk()
+        root.destroy()
+        return True
+    except Exception as e:
+        print("Tkinter is not available on your system. Using prompt input instead of file picker dialog.")
+        return False
+
 def browse_zip_file():
+    # Check tkinter availability first
+    if not check_tkinter_availability():
+        # Fallback to command line input
+        file_path = input("Please enter the path to your WhatsApp chat export ZIP file: ").strip()
+        return file_path if file_path else None
+        
+    import tkinter as tk
+    from tkinter import filedialog
     # Initialize Tkinter root window and hide it
     root = tk.Tk()
     root.withdraw()  # Hide the main window
@@ -345,7 +466,9 @@ def open_html_file_in_browser(html_file: Path):
     # Get the absolute path of the file
     file_path = Path(os.path.abspath(html_file))
     # Open the file in the default web browser
-    webbrowser.open(file_path.as_posix())
+    # file:///
+    print(file_path.as_posix())
+    webbrowser.open(f"file://{file_path.as_posix()}")
 
 def main():
     print(f"Welcome to WhatsAppChatConverter v{version}")
@@ -362,7 +485,8 @@ def main():
         print(f'\n{renderer.html_filename} and {renderer.html_filename_media_linked} have been created in the "{renderer.output_dir}" directory\n("{os.path.abspath(renderer.output_dir)}").')
         open_in_browser = input("\nWould you like to open them in the browser? [Y/n]: ").strip().lower()
         if open_in_browser != 'n':
-            open_html_file_in_browser(Path(renderer.output_dir)/renderer.html_filename_media_linked)
+            if renderer.has_media:
+                open_html_file_in_browser(Path(renderer.output_dir)/renderer.html_filename_media_linked)
             open_html_file_in_browser(Path(renderer.output_dir)/renderer.html_filename)
     except FileNotFoundError as e:
         print(f"\nError: {e}")
