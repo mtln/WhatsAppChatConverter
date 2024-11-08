@@ -517,13 +517,11 @@ def main():
             open_html_file_in_browser(Path(renderer.output_dir)/renderer.html_filename)
     except FileNotFoundError as e:
         print(f"\nError: {e}")
-        sys.exit(1)
     except ValueError as e:
         print(f"\nError: {e}")
-        sys.exit(1)
     except Exception as e:
         print(f"\nAn unexpected error occurred: {e}")
-        sys.exit(1)
 
 if __name__ == "__main__":
     main()
+    input("\nPress Enter to exit...")
