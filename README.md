@@ -2,6 +2,9 @@
 
 This tool converts a WhatsApp chat export into two HTML formats: one with inline media (such as images, videos, and audio files) and a compact version with media links.
 
+![Rendered HTML Screenshot (fictitious chat)](https://raw.githubusercontent.com/mtln/WhatsAppChatConverter/refs/heads/main/RenderedHTMLScreenshot.jpg)
+
+
 ## Why is this useful?
 The HTML export is:
 
@@ -18,7 +21,7 @@ Maybe you want to:
 * export just an excerpt of a chat from a specific date range.
 
 Furthermore, the tool is open-source and runs offline on your computer, so you can be sure that your data is not being sent to any server.  
-And by the way, it’s free! If you find it useful, you can donate.
+And by the way, it’s free! If you find it useful, you can [donate](https://donate.stripe.com/3csfZLaIj5JE6dO4gg).
 
 ## Instructions
 
@@ -34,7 +37,7 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
 
    **OR**
 
-   - If Python is installed on your computer, run the tool directly (no installation required) with the following command:
+   - If Python is installed on your Windows, Mac or Linux computer, run the tool directly (no installation required) with the following command:
      ```bash
      python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/WhatsAppChatConverter/refs/heads/main/main.py').read().decode())"
      ```
@@ -44,11 +47,19 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
      ```
 
 4. **Run the Tool:**
-   - After starting the tool, a file picker dialog will open. Select the ZIP file of the chat export you want to convert. If your installation does not support file dialogs, you will be prompted for the path to the ZIP file.
+   After starting the tool, a file picker dialog will open. Select the ZIP file of the chat export you want to convert. If your installation does not support file dialogs, you will be prompted for the path to the ZIP file.
 
 5. **Identify Yourself:** A list of chat participants will appear. Select your name so that your messages are displayed in green chat bubbles, just like on WhatsApp. If the terminal window doesn’t accept your keyboard input, click right after the colon in `Enter the number corresponding to your name:`.
 
-6. **Open HTML Files:** Once the conversion completes, you can choose to open the HTML files immediately in your browser. From there, you can save the chat as a PDF or print it if needed.
+6. **Open HTML Files:** Once the conversion completes, you can choose to open the HTML files immediately in your browser. From there, you can save the chat as a PDF or print it if needed.  
+
+7. **Print or export HTML to PDF:** 
+When printing an HTML page, most web browsers are set by default to exclude background colors to save ink or toner. If you want to include them, you need to enable background graphics in your browser settings. See the section below for instructions.  
+
+- **In Google Chrome**: Go to `Print` → `More settings` → Check `Background graphics`.
+- **In Mozilla Firefox**: Go to `File` → `Print` → `Page Setup` → Check `Print Background (colors & images)`.
+- **In Microsoft Edge**: Go to `Print` → `More settings` → Check `Background graphics`.
+
 
 ## Supported languages
 WhatsApp chat exports vary depending on your phone’s system language. Currently, this tool has been tested with:
@@ -57,11 +68,10 @@ WhatsApp chat exports vary depending on your phone’s system language. Currentl
 * German
 * French
 * Italian
-
-Prepared to support, but not yet tested:
-
 * Spanish
 * Portugese
+
+If your language is not supported, please let me know.
 
 ## Supported Operating Systems
 
